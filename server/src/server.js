@@ -3,6 +3,7 @@ require("dotenv").config();
 const app = require("./app");
 const pool = require("./config/database");
 const redisClient = require("./config/redis");
+const { verifyEmailTransport } = require("./services/email.service");
 
 const PORT = process.env.PORT || 5000;
 
@@ -13,6 +14,9 @@ const startServer = async () => {
 
     await redisClient.connect();
     console.log("Redis connection successful");
+
+    await verifyEmailTransport();
+    console.log("Email service connection successful");
 
     app.listen(PORT, () => {
       console.log(`Kharch API running on port ${PORT}`);
