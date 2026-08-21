@@ -1,0 +1,33 @@
+1. React Native + Expo
+        ↓
+2. Node.js + Express backend
+        ↓
+3. PostgreSQL (Docker)
+        ↓
+4. Database schema
+        ↓
+5. Authentication
+        ↓
+6. Expense CRUD
+        ↓
+7. Categories + Budget
+        ↓
+8. Validation + Error Handling
+        ↓
+9. Indexing + Query optimization
+        ↓
+10. Redis
+        ↓
+11. Stateless API
+        ↓
+12. Multiple API instances
+        ↓
+13. Nginx Load Balancer
+        ↓
+14. PostgreSQL Replication
+        ↓
+15. PostgreSQL Partitioning
+        ↓
+16. Sharding / Horizontal DB Scaling
+        ↓
+17. Load Testing + Failure Testing

@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: kharch-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: kharch
+      POSTGRES_USER: kharch_user
+      POSTGRES_PASSWORD: kharch_password
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+volumes:
+  postgres_data:
