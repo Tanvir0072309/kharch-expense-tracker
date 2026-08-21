@@ -31,3 +31,27 @@
 16. Sharding / Horizontal DB Scaling
         ↓
 17. Load Testing + Failure Testing
+
+
+
+///////////////////////////////////////////////////////////////
+
+Email
+ ↓
+Request OTP
+ ↓
+Rate limit
+ ↓
+Generate OTP
+ ↓
+Store OTP with TTL in Redis
+ ↓
+Send email
+ ↓
+Verify OTP
+ ↓
+Issue short-lived JWT
+ ↓
+Issue refresh token
+ ↓
+Authenticated app
