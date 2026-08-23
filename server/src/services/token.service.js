@@ -2,6 +2,7 @@ const crypto = require("node:crypto");
 const jwt = require("jsonwebtoken");
 
 const RefreshToken = require("../models/RefreshToken");
+const User = require("../models/User");
 
 const ACCESS_TOKEN_EXPIRES_IN =
   process.env.JWT_ACCESS_EXPIRES_IN || "15m";
@@ -100,6 +101,13 @@ const rotateRefreshToken = async (refreshToken) => {
   }
 
   if (storedToken.revoked_at) {
+    // A refresh token is single-use: rotation revokes the old one on every
+    // successful refresh (see below). Seeing an already-revoked token here
+    // means either a replayed/stolen token or a race from a retried
+    // request, so as a precaution we revoke every other active session for
+    // this user too.
+    await RefreshToken.revokeAllForUser(storedToken.user_id);
+
     const error = new Error("Refresh token has been revoked");
     error.code = "REFRESH_TOKEN_REVOKED";
     throw error;
@@ -111,11 +119,21 @@ const rotateRefreshToken = async (refreshToken) => {
     throw error;
   }
 
+  const user = await User.findById(storedToken.user_id);
+
+  if (!user) {
+    await RefreshToken.revoke(storedToken.id);
+
+    const error = new Error("Invalid refresh token");
+    error.code = "INVALID_REFRESH_TOKEN";
+    throw error;
+  }
+
   await RefreshToken.revoke(storedToken.id);
 
   const newAccessToken = generateAccessToken({
-    userId: storedToken.user_id,
-    email: undefined,
+    userId: user.id,
+    email: user.email,
   });
 
   const newRefreshToken = generateRefreshTokenValue();
@@ -123,7 +141,7 @@ const rotateRefreshToken = async (refreshToken) => {
   const newExpiresAt = getRefreshTokenExpiry();
 
   await RefreshToken.create({
-    userId: storedToken.user_id,
+    userId: user.id,
     tokenHash: newRefreshTokenHash,
     expiresAt: newExpiresAt,
   });
@@ -150,10 +168,15 @@ const revokeRefreshToken = async (refreshToken) => {
   return true;
 };
 
+const revokeAllSessionsForUser = async (userId) => {
+  return RefreshToken.revokeAllForUser(userId);
+};
+
 module.exports = {
   generateAccessToken,
   issueTokens,
   verifyAccessToken,
   rotateRefreshToken,
   revokeRefreshToken,
+  revokeAllSessionsForUser,
 };

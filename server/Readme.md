@@ -208,7 +208,7 @@ Request Body:
 json
 {
   "email": "john@example.com",
-  "otp": "654321"
+  "otp": "117063"
 }
 Success Response (200):
 

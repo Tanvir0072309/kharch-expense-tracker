@@ -60,6 +60,28 @@ const sendOtpEmail = async ({ to, otp, expiresInSeconds }) => {
   });
 };
 
+const sendPasswordChangedEmail = async ({ to }) => {
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to,
+    subject: "Your Kharch password was changed",
+    text:
+      "Your Kharch account password was just changed. If this wasn't you, " +
+      "please reset your password immediately and contact support.",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Password Changed</h2>
+        <p>Your Kharch account password was just changed.</p>
+        <p>
+          If you made this change, no further action is needed.
+          If you did <strong>not</strong> request this change, please reset
+          your password immediately and contact support.
+        </p>
+      </div>
+    `,
+  });
+};
+
 const verifyEmailTransport = async () => {
   await transporter.verify();
   console.log("Email SMTP connection successful");
@@ -67,5 +89,6 @@ const verifyEmailTransport = async () => {
 
 module.exports = {
   sendOtpEmail,
+  sendPasswordChangedEmail,
   verifyEmailTransport,
 };

@@ -2,6 +2,14 @@ const isValidEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
+const isValidPassword = (password) => {
+  return typeof password === "string" &&
+    password.length >= 8 &&
+    password.length <= 128;
+};
+
+const RESEND_OTP_PURPOSES = new Set(["signup", "login", "password_reset"]);
+
 const validateSignup = (req, res, next) => {
   const { name, email, password } = req.body;
 
@@ -21,9 +29,7 @@ const validateSignup = (req, res, next) => {
 
   if (typeof password !== "string" || password.length < 8) {
     errors.password = "Password must be at least 8 characters";
-  }
-
-  if (password && password.length > 128) {
+  } else if (password.length > 128) {
     errors.password = "Password must not exceed 128 characters";
   }
 
@@ -112,8 +118,11 @@ const validateLogin = (req, res, next) => {
   next();
 };
 
+// Used for POST /reset-password: the OTP has already been exchanged for a
+// short-lived reset token (see /verify-reset-otp), so this step only needs
+// the token + the new password, not the OTP itself.
 const validateResetPassword = (req, res, next) => {
-  const { email, otp, password } = req.body;
+  const { email, resetToken, password } = req.body;
 
   const errors = {};
 
@@ -121,16 +130,12 @@ const validateResetPassword = (req, res, next) => {
     errors.email = "A valid email address is required";
   }
 
-  if (typeof otp !== "string" || !/^\d{6}$/.test(otp)) {
-    errors.otp = "OTP must be a 6-digit code";
+  if (typeof resetToken !== "string" || resetToken.trim().length === 0) {
+    errors.resetToken = "A valid reset token is required";
   }
 
-  if (typeof password !== "string" || password.length < 8) {
-    errors.password = "Password must be at least 8 characters";
-  }
-
-  if (password && password.length > 128) {
-    errors.password = "Password must not exceed 128 characters";
+  if (!isValidPassword(password)) {
+    errors.password = "Password must be between 8 and 128 characters";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -142,13 +147,31 @@ const validateResetPassword = (req, res, next) => {
   }
 
   req.body.email = email.trim().toLowerCase();
-  req.body.otp = otp;
+  req.body.resetToken = resetToken.trim();
+
+  next();
+};
+
+const validateRefreshToken = (req, res, next) => {
+  const { refreshToken } = req.body;
+
+  if (typeof refreshToken !== "string" || refreshToken.trim().length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "A refresh token is required",
+      errors: {
+        refreshToken: "Refresh token is required",
+      },
+    });
+  }
+
+  req.body.refreshToken = refreshToken.trim();
 
   next();
 };
 
 const validateResendOtp = (req, res, next) => {
-  const { email, type } = req.body;
+  const { email, purpose } = req.body;
 
   const errors = {};
 
@@ -156,8 +179,9 @@ const validateResendOtp = (req, res, next) => {
     errors.email = "A valid email address is required";
   }
 
-  if (!type || !["signup", "login", "reset"].includes(type)) {
-    errors.type = "Type must be one of: signup, login, reset";
+  if (typeof purpose !== "string" || !RESEND_OTP_PURPOSES.has(purpose)) {
+    errors.purpose =
+      "Purpose must be one of: signup, login, password_reset";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -179,5 +203,6 @@ module.exports = {
   validateVerifyOtp,
   validateLogin,
   validateResetPassword,
+  validateRefreshToken,
   validateResendOtp,
 };

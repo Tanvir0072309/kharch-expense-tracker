@@ -1,4 +1,5 @@
 const authService = require("../services/auth.service");
+const { sendSuccess } = require("../utils/response");
 
 const signup = async (req, res, next) => {
   try {
@@ -8,8 +9,8 @@ const signup = async (req, res, next) => {
       password: req.body.password,
     });
 
-    return res.status(201).json({
-      success: true,
+    return sendSuccess(res, {
+      statusCode: 201,
       message: result.message,
       data: {
         userId: result.userId,
@@ -28,8 +29,7 @@ const verifySignupOtp = async (req, res, next) => {
       otp: req.body.otp,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: "Email verified successfully",
       data: result,
     });
@@ -45,8 +45,7 @@ const login = async (req, res, next) => {
       password: req.body.password,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: result.message,
       data: {
         userId: result.userId,
@@ -65,8 +64,7 @@ const verifyLoginOtp = async (req, res, next) => {
       otp: req.body.otp,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: "Login successful",
       data: result,
     });
@@ -77,12 +75,9 @@ const verifyLoginOtp = async (req, res, next) => {
 
 const refreshToken = async (req, res, next) => {
   try {
-    const { refreshToken: token } = req.body;
+    const result = await authService.refreshToken(req.body.refreshToken);
 
-    const result = await authService.refreshToken(token);
-
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: "Access token refreshed successfully",
       data: result,
     });
@@ -97,8 +92,7 @@ const logout = async (req, res, next) => {
       refreshToken: req.body.refreshToken,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: result.message,
       data: null,
     });
@@ -113,8 +107,7 @@ const forgotPassword = async (req, res, next) => {
       email: req.body.email,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: result.message,
       data: {
         email: result.email,
@@ -132,10 +125,12 @@ const verifyResetOtp = async (req, res, next) => {
       otp: req.body.otp,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: "OTP verified successfully",
-      data: result,
+      data: {
+        resetToken: result.resetToken,
+        expiresIn: result.expiresIn,
+      },
     });
   } catch (error) {
     next(error);
@@ -146,12 +141,11 @@ const resetPassword = async (req, res, next) => {
   try {
     const result = await authService.resetPassword({
       email: req.body.email,
-      otp: req.body.otp,
+      resetToken: req.body.resetToken,
       password: req.body.password,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: result.message,
       data: null,
     });
@@ -164,16 +158,44 @@ const resendOtp = async (req, res, next) => {
   try {
     const result = await authService.resendOtp({
       email: req.body.email,
-      type: req.body.type, // 'signup', 'login', 'reset'
+      purpose: req.body.purpose,
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: result.message,
       data: {
         email: result.email,
-        expiresIn: result.expiresIn,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Protected: reads the authenticated user's own id off req.user, which was
+// set by the `authenticate` middleware after verifying the JWT access token.
+const me = async (req, res, next) => {
+  try {
+    const user = await authService.getCurrentUser(req.user.id);
+
+    return sendSuccess(res, {
+      message: "Current user fetched successfully",
+      data: { user },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Protected: signs the authenticated user out of every device by revoking
+// all of their refresh tokens.
+const logoutAll = async (req, res, next) => {
+  try {
+    const result = await authService.logoutAll(req.user.id);
+
+    return sendSuccess(res, {
+      message: result.message,
+      data: null,
     });
   } catch (error) {
     next(error);
@@ -187,8 +209,10 @@ module.exports = {
   verifyLoginOtp,
   refreshToken,
   logout,
+  logoutAll,
   forgotPassword,
   verifyResetOtp,
   resetPassword,
   resendOtp,
+  me,
 };
