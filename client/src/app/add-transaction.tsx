@@ -51,6 +51,11 @@ export default function AddTransactionScreen() {
   const allCategories = [...categories, ...EXTRA_CATEGORIES];
   const selectedCategory = allCategories.find((c) => c.id === categoryId);
 
+  // ✅ Direct navigation to Home page
+  const goToHome = () => {
+    router.replace('/(tabs)/home');
+  };
+
   const handleSave = async () => {
     const numericAmount = Number(amount);
     if (!title.trim()) {
@@ -72,7 +77,8 @@ export default function AddTransactionScreen() {
         date: new Date().toISOString(),
         categoryId: selectedCategory?.id || null,
       });
-      router.back();
+      // ✅ Go to Home after successful save
+      goToHome();
     } catch (err: any) {
       setError(err?.message || 'Could not save the transaction. Please try again.');
     } finally {
@@ -88,7 +94,8 @@ export default function AddTransactionScreen() {
           <View style={styles.handle} />
           <View style={styles.headerRow}>
             <Text style={styles.title}>Add Transaction</Text>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={styles.closeBtn}>
+            {/* ✅ Close button - goes to Home */}
+            <Pressable onPress={goToHome} hitSlop={10} style={styles.closeBtn}>
               <Ionicons name="close" size={18} color={AppColors.textMuted} />
             </Pressable>
           </View>
