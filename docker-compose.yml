@@ -31,6 +31,46 @@ services:
     volumes:
       - redis_data:/data
 
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+
+    container_name: kharch-api
+    restart: unless-stopped
+
+    ports:
+      - "5000:5000"
+
+    environment:
+      PORT: 5000
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: kharch
+      DB_USER: kharch_user
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_SECURE: "false"
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 30d
+
+    depends_on:
+      - postgres
+      - redis
+
 volumes:
   postgres_data:
   redis_data:
