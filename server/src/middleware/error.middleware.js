@@ -39,6 +39,17 @@ const ERROR_STATUS_MAP = {
   // Generic
   RATE_LIMIT_EXCEEDED: 429,
   NOT_FOUND: 404,
+
+  // Users
+  USER_NOT_FOUND: 404,
+  INVALID_CURRENT_PASSWORD: 401,
+
+  // Transactions
+  TRANSACTION_NOT_FOUND: 404,
+
+  // Categories
+  CATEGORY_NOT_FOUND: 404,
+  CATEGORY_ALREADY_EXISTS: 409,
 };
 
 const notFoundHandler = (req, res) => {

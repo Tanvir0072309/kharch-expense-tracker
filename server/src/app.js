@@ -1,25 +1,33 @@
 const express = require("express");
+const cors = require("cors");
 
 const pool = require("./config/database");
 const redisClient = require("./config/redis");
 const authRoutes = require("./routes/auth.routes");
-const { notFoundHandler, errorHandler } = require("./middleware/error.middleware");
+const userRoutes = require("./routes/user.routes");
+const transactionRoutes = require("./routes/transaction.routes");
+const categoryRoutes = require("./routes/category.routes");
+const dashboardRoutes = require("./routes/dashboard.routes");
+const analyticsRoutes = require("./routes/analytics.routes");
+const {
+  notFoundHandler,
+  errorHandler,
+} = require("./middleware/error.middleware");
 
 const app = express();
 
-// Trust the first proxy hop (nginx, per infrastructure/nginx) so
-// `req.ip` reflects the real client IP instead of the proxy's - this
-// matters a lot for the IP-based rate limiters.
 app.set("trust proxy", 1);
 
-// A small, dependency-free set of security headers. Kept minimal on purpose
-// (no helmet dependency) since the app is a pure JSON API behind nginx.
-app.use((req, res, next) => {
-  res.set("X-Content-Type-Options", "nosniff");
-  res.set("X-Frame-Options", "DENY");
-  res.set("Referrer-Policy", "no-referrer");
-  next();
-});
+app.use(
+  cors({
+    origin: "http://localhost:8081",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
+);
+
+// security headers...
 
 // Cap body size - auth payloads are tiny, so this also doubles as basic
 // protection against oversized-payload DoS attempts.
@@ -51,6 +59,8 @@ const SENSITIVE_FIELDS = new Set([
   "otp",
   "resetToken",
   "refreshToken",
+  "currentPassword",
+  "newPassword",
 ]);
 
 function maskSensitiveBody(body) {
@@ -99,6 +109,11 @@ app.get("/health", async (req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/transactions", transactionRoutes);
+app.use("/api/v1/categories", categoryRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
+app.use("/api/v1/analytics", analyticsRoutes);
 
 // Anything that falls through the routes above is a 404, not a silently
 // hanging request.

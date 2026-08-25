@@ -1,18 +1,46 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { Provider } from 'react-redux';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { TransactionsProvider } from '@/context/transactions-context';
+import { store } from '@/store';
+import { useAppDispatch } from '@/store/hooks';
+import { restoreSession } from '@/store/slices/authSlice';
 
-SplashScreen.preventAutoHideAsync();
+function SessionBootstrapper() {
+  const dispatch = useAppDispatch();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  useEffect(() => {
+    // On app start, check AsyncStorage for a previously saved access token
+    // so the user doesn't have to log in again every time they reopen the app.
+    dispatch(restoreSession());
+  }, [dispatch]);
+
+  return null;
+}
+
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <Provider store={store}>
+      <TransactionsProvider>
+        <SessionBootstrapper />
+        <StatusBar style="dark" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="welcome" />
+          <Stack.Screen name="signup" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="otp-verification" />
+          <Stack.Screen name="forgot-password" />
+          <Stack.Screen name="reset-password" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="add-transaction"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+        </Stack>
+      </TransactionsProvider>
+    </Provider>
   );
 }

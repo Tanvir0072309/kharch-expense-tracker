@@ -75,6 +75,47 @@ const User = {
         return rows[0] ?? null;
     },
 
+    async updateProfile(id, { name }) {
+        const query = `
+      UPDATE users
+      SET
+        name = $2,
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING
+        id,
+        name,
+        email,
+        is_email_verified,
+        created_at,
+        updated_at
+    `;
+
+        const { rows } = await pool.query(query, [id, name]);
+
+        return rows[0] ?? null;
+    },
+
+    async findByIdWithPasswordHash(id) {
+        const query = `
+      SELECT
+        id,
+        name,
+        email,
+        password_hash,
+        is_email_verified,
+        created_at,
+        updated_at
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+    `;
+
+        const { rows } = await pool.query(query, [id]);
+
+        return rows[0] ?? null;
+    },
+
     async verifyEmail(id) {
         const query = `
       UPDATE users
