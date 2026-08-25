@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const os = require("os");
 
 const pool = require("./config/database");
 const redisClient = require("./config/redis");
@@ -27,22 +28,24 @@ app.use(
   }),
 );
 
-// security headers...
+// Security headers
+app.use((req, res, next) => {
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("X-Frame-Options", "DENY");
+  res.set("Referrer-Policy", "no-referrer");
+  next();
+});
 
-// Cap body size - auth payloads are tiny, so this also doubles as basic
-// protection against oversized-payload DoS attempts.
+// Cap body size
 app.use(express.json({ limit: "10kb" }));
 
-// Lightweight request logger (no morgan dependency needed). Prints every
-// incoming request with a timestamp + IP so duplicate/double-fired requests
-// from a client (double-tap, retry-on-timeout, React effect firing twice,
-// etc.) are immediately visible in the server console - very useful when
-// debugging "why did this OTP get consumed twice" style issues.
+// Lightweight request logger
 app.use((req, res, next) => {
   const start = Date.now();
 
   res.on("finish", () => {
     const durationMs = Date.now() - start;
+
     console.log(
       `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ` +
         `-> ${res.statusCode} (${durationMs}ms) ip=${req.ip} ` +
@@ -53,7 +56,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Never print raw passwords/OTPs/tokens to the console, even in a debug logger.
+// Never print sensitive values to logs
 const SENSITIVE_FIELDS = new Set([
   "password",
   "otp",
@@ -79,6 +82,7 @@ function maskSensitiveBody(body) {
   return masked;
 }
 
+// Health check
 app.get("/health", async (req, res) => {
   try {
     const [, redisStatus] = await Promise.all([
@@ -89,6 +93,11 @@ app.get("/health", async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Kharch API is running",
+
+      // Temporary field for load-balancer testing.
+      // Remove this after testing.
+      instance: os.hostname(),
+
       services: {
         database: "connected",
         redis: redisStatus === "PONG" ? "connected" : "unknown",
@@ -100,6 +109,10 @@ app.get("/health", async (req, res) => {
     return res.status(503).json({
       success: false,
       message: "One or more services are unavailable",
+
+      // Temporary field for load-balancer testing.
+      instance: os.hostname(),
+
       services: {
         database: "unknown",
         redis: "unknown",
@@ -108,6 +121,7 @@ app.get("/health", async (req, res) => {
   }
 });
 
+// API routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/transactions", transactionRoutes);
@@ -115,12 +129,10 @@ app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/analytics", analyticsRoutes);
 
-// Anything that falls through the routes above is a 404, not a silently
-// hanging request.
+// 404 handler
 app.use(notFoundHandler);
 
-// Centralized error handler - must be registered last so Express treats it
-// as an error-handling middleware (4-arg signature).
+// Centralized error handler
 app.use(errorHandler);
 
 module.exports = app;

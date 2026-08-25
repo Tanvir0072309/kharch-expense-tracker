@@ -20,9 +20,9 @@ const startServer = async () => {
     await verifyEmailTransport();
     console.log("Email service connection successful");
 
-    server = app.listen(PORT, () => {
-      console.log(`Kharch API running on port ${PORT}`);
-    });
+    server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Kharch API running on port ${PORT}`);
+});
   } catch (error) {
     console.error("Failed to start server:", error);
 
