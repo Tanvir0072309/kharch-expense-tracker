@@ -1,160 +1,222 @@
 services:
   # ========================================
-  # PRIMARY POSTGRES INSTANCES (Shards) - NO CHANGE
+  # PATRONI PRIMARY FOR SHARD-1
   # ========================================
-  
+
   postgres-1:
-    image: postgres:18
-    container_name: kharch-postgres-1
+    image: kharch/patroni-postgres:18
+    container_name: kharch-patroni-shard-1-primary
     restart: unless-stopped
     environment:
-      POSTGRES_DB: kharch
-      POSTGRES_USER: kharch_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    command:
-      - postgres
-      - -c
-      - config_file=/etc/postgresql/postgresql.conf
-      - -c
-      - hba_file=/etc/postgresql/pg_hba.conf
-    ports:
-      - "5433:5432"
     volumes:
       - postgres_1_data:/var/lib/postgresql
-      - ./infrastructure/postgres/replication/shard-1/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./infrastructure/postgres/replication/shard-1/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kharch_user -d kharch"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  postgres-2:
-    image: postgres:18
-    container_name: kharch-postgres-2
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: kharch
-      POSTGRES_USER: kharch_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      - ./infrastructure/patroni/shard-1/patroni-primary.yml:/etc/patroni.yml:ro
     command:
-      - postgres
-      - -c
-      - config_file=/etc/postgresql/postgresql.conf
-      - -c
-      - hba_file=/etc/postgresql/pg_hba.conf
+      - /etc/patroni.yml
+    networks:
+      default:
+        aliases:
+          - shard-1-primary
+    depends_on:
+      etcd:
+        condition: service_healthy
     ports:
-      - "5434:5432"
-    volumes:
-      - postgres_2_data:/var/lib/postgresql
-      - ./infrastructure/postgres/replication/shard-2/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./infrastructure/postgres/replication/shard-2/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - "5433:5432"
+      - "8009:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kharch_user -d kharch"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  postgres-3:
-    image: postgres:18
-    container_name: kharch-postgres-3
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: kharch
-      POSTGRES_USER: kharch_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    command:
-      - postgres
-      - -c
-      - config_file=/etc/postgresql/postgresql.conf
-      - -c
-      - hba_file=/etc/postgresql/pg_hba.conf
-    ports:
-      - "5435:5432"
-    volumes:
-      - postgres_3_data:/var/lib/postgresql
-      - ./infrastructure/postgres/replication/shard-3/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./infrastructure/postgres/replication/shard-3/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kharch_user -d kharch"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      retries: 10
 
   # ========================================
-  # REPLICAS FOR POSTGRES-1
+  # PATRONI PRIMARY FOR SHARD-2
+  # ========================================
+
+  postgres-2:
+    image: kharch/patroni-postgres:18
+    container_name: kharch-patroni-shard-2-primary
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_2_data:/var/lib/postgresql
+      - ./infrastructure/patroni/shard-2/patroni-primary.yml:/etc/patroni.yml:ro
+    command:
+      - /etc/patroni.yml
+    networks:
+      default:
+        aliases:
+          - shard-2-primary
+    depends_on:
+      etcd:
+        condition: service_healthy
+    ports:
+      - "5434:5432"
+      - "8010:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ========================================
+  # PATRONI PRIMARY FOR SHARD-3
+  # ========================================
+
+  postgres-3:
+    image: kharch/patroni-postgres:18
+    container_name: kharch-patroni-shard-3-primary
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_3_data:/var/lib/postgresql
+      - ./infrastructure/patroni/shard-3/patroni-primary.yml:/etc/patroni.yml:ro
+    command:
+      - /etc/patroni.yml
+    networks:
+      default:
+        aliases:
+          - shard-3-primary
+    depends_on:
+      etcd:
+        condition: service_healthy
+    ports:
+      - "5435:5432"
+      - "8011:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ========================================
+  # PATRONI REPLICA FOR SHARD-1
   # ========================================
 
   postgres-1-replica:
-    image: postgres:18
-    container_name: kharch-postgres-1-replica
+    image: kharch/patroni-postgres:18
+    container_name: kharch-patroni-shard-1-node-1
     restart: unless-stopped
     environment:
-      POSTGRES_DB: kharch
-      POSTGRES_USER: kharch_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PGDATA: /var/lib/postgresql/18/docker  # ✅ ADDED
     volumes:
       - postgres_1_replica_data:/var/lib/postgresql
+      - ./infrastructure/patroni/shard-1/patroni-replica.yml:/etc/patroni.yml:ro
+    command:
+      - /etc/patroni.yml
+    networks:
+      default:
+        aliases:
+          - shard-1-node-1
     depends_on:
       postgres-1:
         condition: service_healthy
+      etcd:
+        condition: service_healthy
     ports:
       - "5436:5432"
+      - "8012:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kharch_user -d kharch"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   # ========================================
-  # REPLICAS FOR POSTGRES-2
+  # PATRONI REPLICA FOR SHARD-2
   # ========================================
 
   postgres-2-replica:
-    image: postgres:18
-    container_name: kharch-postgres-2-replica
+    image: kharch/patroni-postgres:18
+    container_name: kharch-patroni-shard-2-node-1
     restart: unless-stopped
     environment:
-      POSTGRES_DB: kharch
-      POSTGRES_USER: kharch_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PGDATA: /var/lib/postgresql/18/docker  # ✅ ADDED
     volumes:
       - postgres_2_replica_data:/var/lib/postgresql
+      - ./infrastructure/patroni/shard-2/patroni-replica.yml:/etc/patroni.yml:ro
+    command:
+      - /etc/patroni.yml
+    networks:
+      default:
+        aliases:
+          - shard-2-node-1
     depends_on:
       postgres-2:
         condition: service_healthy
+      etcd:
+        condition: service_healthy
     ports:
       - "5437:5432"
+      - "8013:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kharch_user -d kharch"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   # ========================================
-  # REPLICAS FOR POSTGRES-3
+  # PATRONI REPLICA FOR SHARD-3
   # ========================================
 
   postgres-3-replica:
-    image: postgres:18
-    container_name: kharch-postgres-3-replica
+    image: kharch/patroni-postgres:18
+    container_name: kharch-patroni-shard-3-node-1
     restart: unless-stopped
     environment:
-      POSTGRES_DB: kharch
-      POSTGRES_USER: kharch_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PGDATA: /var/lib/postgresql/18/docker  # ✅ ADDED
     volumes:
       - postgres_3_replica_data:/var/lib/postgresql
+      - ./infrastructure/patroni/shard-3/patroni-replica.yml:/etc/patroni.yml:ro
+    command:
+      - /etc/patroni.yml
+    networks:
+      default:
+        aliases:
+          - shard-3-node-1
     depends_on:
       postgres-3:
         condition: service_healthy
+      etcd:
+        condition: service_healthy
     ports:
       - "5438:5432"
+      - "8014:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kharch_user -d kharch"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ========================================
+  # ETCD
+  # ========================================
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    container_name: kharch-etcd
+    restart: unless-stopped
+    command:
+      - /usr/local/bin/etcd
+      - --name=kharch-etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=kharch-etcd=http://etcd:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=kharch-etcd-cluster
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd_data:/etcd-data
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -190,34 +252,48 @@ services:
       context: ./server
       dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "5001:5000"
     environment:
       PORT: 5000
 
-      DB_HOST: postgres-1
-      DB_PORT: 5432
-      DB_NAME: kharch
-      DB_USER: kharch_user
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-
       # Shard Configuration
-      SHARD_0_HOST: postgres-1
+      SHARD_0_HOST: shard-1-primary
       SHARD_0_PORT: 5432
+      SHARD_0_DB: kharch
+      SHARD_0_USER: postgres
+      SHARD_0_PASSWORD: ${POSTGRES_PASSWORD}
 
-      SHARD_1_HOST: postgres-2
+      SHARD_1_HOST: shard-2-primary
       SHARD_1_PORT: 5432
+      SHARD_1_DB: kharch
+      SHARD_1_USER: postgres
+      SHARD_1_PASSWORD: ${POSTGRES_PASSWORD}
 
-      SHARD_2_HOST: postgres-3
+      SHARD_2_HOST: shard-3-primary
       SHARD_2_PORT: 5432
+      SHARD_2_DB: kharch
+      SHARD_2_USER: postgres
+      SHARD_2_PASSWORD: ${POSTGRES_PASSWORD}
 
-      # Replica Configuration (Read-only)
-      REPLICA_0_HOST: postgres-1-replica
+      # Patroni Replica Configuration (Read-only)
+      REPLICA_0_HOST: shard-1-node-1
       REPLICA_0_PORT: 5432
 
-      REPLICA_1_HOST: postgres-2-replica
+      REPLICA_1_HOST: shard-2-node-1
       REPLICA_1_PORT: 5432
 
-      REPLICA_2_HOST: postgres-3-replica
+      REPLICA_2_HOST: shard-3-node-1
       REPLICA_2_PORT: 5432
+
+      # Patroni REST API endpoints (for monitoring)
+      PATRONI_0_URL: http://shard-1-primary:8008
+      PATRONI_1_URL: http://shard-2-primary:8008
+      PATRONI_2_URL: http://shard-3-primary:8008
+
+      # ETCD Configuration
+      ETCD_HOST: etcd
+      ETCD_PORT: 2379
 
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -248,6 +324,8 @@ services:
         condition: service_healthy
       postgres-3-replica:
         condition: service_healthy
+      etcd:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
@@ -277,4 +355,5 @@ volumes:
   postgres_1_replica_data:
   postgres_2_replica_data:
   postgres_3_replica_data:
+  etcd_data:
   redis_data:

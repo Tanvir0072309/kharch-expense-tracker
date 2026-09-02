@@ -1,0 +1,66 @@
+scope: kharch-shard-1
+namespace: /service/
+name: shard-1-node-1
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: shard-1-node-1:8008
+
+etcd3:
+  host: etcd:2379
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - host all all 0.0.0.0/0 scram-sha-256
+    - host replication replicator 0.0.0.0/0 scram-sha-256
+    - host all all 0.0.0.0/0 md5  # Fallback for older clients
+    - local all all trust  # Local connections
+    - host all postgres 0.0.0.0/0 scram-sha-256  # Explicit postgres user access
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: shard-1-node-1:5432
+  data_dir: /var/lib/postgresql/18/docker
+  bin_dir: /usr/lib/postgresql/18/bin
+
+  authentication:
+    superuser:
+      username: kharch_user
+      password: tanvir@7860
+    replication:
+      username: replicator
+      password: tanvir@7860
+    # Add rewind user for pg_rewind
+    rewind:
+      username: rewind_user
+      password: tanvir@7860
+
+  parameters:
+    wal_level: replica
+    max_wal_senders: 10
+    max_replication_slots: 10
+    max_connections: 100
+    # Add these parameters
+    password_encryption: scram-sha-256
+    hot_standby: on
+    hot_standby_feedback: on
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

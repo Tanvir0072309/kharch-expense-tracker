@@ -1,0 +1,37 @@
+scope: kharch-shard-2
+namespace: /service/
+name: shard-2-node-1
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: shard-2-node-1:8008
+
+etcd3:
+  host: etcd:2379
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: shard-2-node-1:5432
+  data_dir: /var/lib/postgresql/18/docker
+  bin_dir: /usr/lib/postgresql/18/bin
+
+  authentication:
+    superuser:
+      username: kharch_user
+      password: "tanvir@7860"
+
+    replication:
+      username: replicator
+      password: "tanvir@7860"
+
+  parameters:
+    wal_level: replica
+    max_wal_senders: 10
+    max_replication_slots: 10
+    max_connections: 100
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: true
+  nosync: false

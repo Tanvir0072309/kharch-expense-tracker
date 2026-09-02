@@ -1,0 +1,40 @@
+services:
+  api:
+    image: kharch-api:latest
+    ports:
+      - "5001:5000"
+    environment:
+      PORT: 5000
+      SHARD_0_HOST: shard-1-primary
+      SHARD_0_PORT: 5432
+      SHARD_0_DB: kharch
+      SHARD_0_USER: postgres
+      SHARD_0_PASSWORD: tanvir@7860
+      SHARD_1_HOST: shard-2-primary
+      SHARD_1_PORT: 5432
+      SHARD_1_DB: kharch
+      SHARD_1_USER: postgres
+      SHARD_1_PASSWORD: tanvir@7860
+      SHARD_2_HOST: shard-3-primary
+      SHARD_2_PORT: 5432
+      SHARD_2_DB: kharch
+      SHARD_2_USER: postgres
+      SHARD_2_PASSWORD: tanvir@7860
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: tanvir@7860
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_SECURE: "false"
+      SMTP_USER: mrtanvir0072@gmail.com
+      SMTP_PASSWORD: atupqkxkjslsafbd
+      EMAIL_FROM: "Kharch <mrtanvir007@gmail.com>"
+      JWT_ACCESS_SECRET: rfahkjdnvklehdthskngu
+      JWT_REFRESH_SECRET: hfksmclopngbdlyhlenc
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 30d
+    network_mode: host
+    extra_hosts:
+      - "shard-1-primary:172.18.0.4"
+      - "shard-2-primary:172.18.0.5"
+      - "shard-3-primary:172.18.0.6"
