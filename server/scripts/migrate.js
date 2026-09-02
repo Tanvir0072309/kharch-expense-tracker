@@ -6,24 +6,32 @@ require("dotenv").config({
   path: path.join(__dirname, "../.env"),
 });
 
+// Falls back to the same SHARD_0_* vars the running app already uses
+// (see src/config/database.js), so you don't need a separate set of
+// DB_* vars just to run migrations against the primary shard.
 const pool = new Pool({
-  host: process.env.DB_HOST || "localhost",
-  port: Number(process.env.DB_PORT) || 5432,
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
-  database: process.env.DB_NAME || "kharch",
+  host: process.env.DB_HOST || process.env.SHARD_0_HOST || "localhost",
+  port: Number(process.env.DB_PORT || process.env.SHARD_0_PORT) || 5432,
+  user: process.env.DB_USER || process.env.SHARD_0_USER || "postgres",
+  password: process.env.DB_PASSWORD || process.env.SHARD_0_PASSWORD,
+  database: process.env.DB_NAME || process.env.SHARD_0_DB || "kharch",
 });
 
-const migrationsPath = path.join(
-  __dirname,
-  "../../infrastructure/postgres/migrations",
-);
+// Self-contained: migrations live inside this package (server/migrations),
+// not in a sibling "infrastructure" folder that may not exist wherever this
+// image/checkout is deployed. Still overridable via MIGRATIONS_DIR for
+// setups that do keep migrations elsewhere.
+const migrationsPath = process.env.MIGRATIONS_DIR
+  ? path.resolve(process.env.MIGRATIONS_DIR)
+  : path.join(__dirname, "../migrations");
 
 const migrate = async () => {
   const client = await pool.connect();
 
   try {
     console.log("🚀 Starting migration...");
+    console.log(`   Target DB: ${pool.options.host}:${pool.options.port}/${pool.options.database}`);
+    console.log(`   Migrations dir: ${migrationsPath}`);
 
     await client.query("BEGIN");
 

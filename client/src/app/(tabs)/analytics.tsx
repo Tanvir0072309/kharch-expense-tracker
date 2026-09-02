@@ -39,6 +39,32 @@ export default function AnalyticsScreen() {
   const avgAmount = count > 0 ? totalAmount / count : 0;
   const topCategory = categoryData.length > 0 ? categoryData[0] : null;
 
+  // Last 6 months income vs expense, used for the trend chart below.
+  const monthlyTrend = useMemo(() => {
+    const now = new Date();
+    const buckets: { key: string; label: string; income: number; expense: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      buckets.push({
+        key: `${d.getFullYear()}-${d.getMonth()}`,
+        label: d.toLocaleDateString('en-US', { month: 'short' }),
+        income: 0,
+        expense: 0,
+      });
+    }
+    const byKey = new Map(buckets.map((b) => [b.key, b]));
+    transactions.forEach((t) => {
+      const d = new Date(t.date);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const bucket = byKey.get(key);
+      if (!bucket) return;
+      if (t.type === 'profit') bucket.income += t.amount;
+      else bucket.expense += t.amount;
+    });
+    return buckets;
+  }, [transactions]);
+  const monthlyMax = Math.max(...monthlyTrend.flatMap((m) => [m.income, m.expense]), 1);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* ✅ Sticky Header */}
@@ -151,12 +177,54 @@ export default function AnalyticsScreen() {
           </View>
         )}
 
+        <Text style={styles.sectionTitle}>6-Month Trend</Text>
+        <View style={styles.trendCard}>
+          <View style={styles.trendLegend}>
+            <View style={styles.trendLegendItem}>
+              <View style={[styles.trendDot, { backgroundColor: AppColors.success }]} />
+              <Text style={styles.trendLegendText}>Income</Text>
+            </View>
+            <View style={styles.trendLegendItem}>
+              <View style={[styles.trendDot, { backgroundColor: AppColors.danger }]} />
+              <Text style={styles.trendLegendText}>Expense</Text>
+            </View>
+          </View>
+          <View style={styles.trendRow}>
+            {monthlyTrend.map((m) => (
+              <View key={m.key} style={styles.trendCol}>
+                <View style={styles.trendBars}>
+                  <View
+                    style={[
+                      styles.trendBar,
+                      {
+                        height: Math.max((m.income / monthlyMax) * 90, m.income > 0 ? 4 : 0),
+                        backgroundColor: AppColors.success,
+                      },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.trendBar,
+                      {
+                        height: Math.max((m.expense / monthlyMax) * 90, m.expense > 0 ? 4 : 0),
+                        backgroundColor: AppColors.danger,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.trendLabel}>{m.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
         <Text style={styles.sectionTitle}>Spending Breakdown</Text>
         <View style={styles.chartCard}>
           {categoryData.length > 0 ? (
             <>
               <View style={styles.pieWrap}>
-                <PieChart data={categoryData} size={Math.min(width - 120, 220)} is3D={true} />
+                {/* FIXED: Removed is3D={true} */}
+                <PieChart data={categoryData} size={Math.min(width - 120, 220)} />
               </View>
               <View style={styles.legendWrapper}>
                 <PieLegend data={categoryData} />
@@ -407,6 +475,59 @@ const styles = StyleSheet.create({
     color: AppColors.text,
     marginTop: Spacing.xxl,
     marginBottom: Spacing.md,
+  },
+  trendCard: {
+    backgroundColor: AppColors.card,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  trendLegend: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: Spacing.md,
+  },
+  trendLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  trendLegendText: {
+    fontSize: 11,
+    color: AppColors.textMuted,
+    fontWeight: '600',
+  },
+  trendRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 110,
+  },
+  trendCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  trendBars: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+    height: 90,
+  },
+  trendBar: {
+    width: 8,
+    borderRadius: 4,
+  },
+  trendLabel: {
+    fontSize: 10,
+    color: AppColors.textMuted,
+    fontWeight: '600',
+    marginTop: 6,
   },
   chartCard: {
     backgroundColor: AppColors.card,

@@ -2,7 +2,6 @@ services:
   # ========================================
   # PATRONI PRIMARY FOR SHARD-1
   # ========================================
-
   postgres-1:
     image: kharch/patroni-postgres:18
     container_name: kharch-patroni-shard-1-primary
@@ -25,15 +24,15 @@ services:
       - "5433:5432"
       - "8009:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   # ========================================
   # PATRONI PRIMARY FOR SHARD-2
   # ========================================
-
   postgres-2:
     image: kharch/patroni-postgres:18
     container_name: kharch-patroni-shard-2-primary
@@ -56,15 +55,15 @@ services:
       - "5434:5432"
       - "8010:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   # ========================================
   # PATRONI PRIMARY FOR SHARD-3
   # ========================================
-
   postgres-3:
     image: kharch/patroni-postgres:18
     container_name: kharch-patroni-shard-3-primary
@@ -87,15 +86,15 @@ services:
       - "5435:5432"
       - "8011:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   # ========================================
   # PATRONI REPLICA FOR SHARD-1
   # ========================================
-
   postgres-1-replica:
     image: kharch/patroni-postgres:18
     container_name: kharch-patroni-shard-1-node-1
@@ -120,15 +119,15 @@ services:
       - "5436:5432"
       - "8012:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   # ========================================
   # PATRONI REPLICA FOR SHARD-2
   # ========================================
-
   postgres-2-replica:
     image: kharch/patroni-postgres:18
     container_name: kharch-patroni-shard-2-node-1
@@ -153,15 +152,15 @@ services:
       - "5437:5432"
       - "8013:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   # ========================================
   # PATRONI REPLICA FOR SHARD-3
   # ========================================
-
   postgres-3-replica:
     image: kharch/patroni-postgres:18
     container_name: kharch-patroni-shard-3-node-1
@@ -186,15 +185,15 @@ services:
       - "5438:5432"
       - "8014:8008"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U kharch_user -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   # ========================================
   # ETCD
   # ========================================
-
   etcd:
     image: quay.io/coreos/etcd:v3.5.15
     container_name: kharch-etcd
@@ -224,7 +223,6 @@ services:
   # ========================================
   # REDIS
   # ========================================
-
   redis:
     image: redis:8-alpine
     container_name: kharch-redis
@@ -238,63 +236,79 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # ========================================
-  # API
+  # PGBOUNCER CONNECTION POOL
   # ========================================
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: kharch-pgbouncer
+    restart: unless-stopped
+    volumes:
+      - ./infrastructure/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infrastructure/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres-1:
+        condition: service_healthy
+      postgres-2:
+        condition: service_healthy
+      postgres-3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U kharch_user -d kharch_shard0"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
-  api:
+  # ========================================
+  # API INSTANCE 1
+  # ========================================
+  api1:
     build:
       context: ./server
       dockerfile: Dockerfile
+    container_name: kharch-api-1
     restart: unless-stopped
-    ports:
-      - "5001:5000"
     environment:
       PORT: 5000
-
-      # Shard Configuration
-      SHARD_0_HOST: shard-1-primary
-      SHARD_0_PORT: 5432
-      SHARD_0_DB: kharch
-      SHARD_0_USER: postgres
+      SHARD_0_HOST: pgbouncer
+      SHARD_0_PORT: 6432
+      SHARD_0_DB: kharch_shard0
+      SHARD_0_USER: kharch_user
       SHARD_0_PASSWORD: ${POSTGRES_PASSWORD}
 
-      SHARD_1_HOST: shard-2-primary
-      SHARD_1_PORT: 5432
-      SHARD_1_DB: kharch
-      SHARD_1_USER: postgres
+      SHARD_1_HOST: pgbouncer
+      SHARD_1_PORT: 6432
+      SHARD_1_DB: kharch_shard1
+      SHARD_1_USER: kharch_user
       SHARD_1_PASSWORD: ${POSTGRES_PASSWORD}
 
-      SHARD_2_HOST: shard-3-primary
-      SHARD_2_PORT: 5432
-      SHARD_2_DB: kharch
-      SHARD_2_USER: postgres
+      SHARD_2_HOST: pgbouncer
+      SHARD_2_PORT: 6432
+      SHARD_2_DB: kharch_shard2
+      SHARD_2_USER: kharch_user
       SHARD_2_PASSWORD: ${POSTGRES_PASSWORD}
 
-      # Patroni Replica Configuration (Read-only)
       REPLICA_0_HOST: shard-1-node-1
       REPLICA_0_PORT: 5432
-
       REPLICA_1_HOST: shard-2-node-1
       REPLICA_1_PORT: 5432
-
       REPLICA_2_HOST: shard-3-node-1
       REPLICA_2_PORT: 5432
 
-      # Patroni REST API endpoints (for monitoring)
       PATRONI_0_URL: http://shard-1-primary:8008
       PATRONI_1_URL: http://shard-2-primary:8008
       PATRONI_2_URL: http://shard-3-primary:8008
 
-      # ETCD Configuration
       ETCD_HOST: etcd
       ETCD_PORT: 2379
-
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -310,7 +324,6 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 30d
-
     depends_on:
       postgres-1:
         condition: service_healthy
@@ -319,35 +332,212 @@ services:
       postgres-3:
         condition: service_healthy
       postgres-1-replica:
-        condition: service_healthy
+        condition: service_started
       postgres-2-replica:
-        condition: service_healthy
+        condition: service_started
       postgres-3-replica:
+        condition: service_started
+      pgbouncer:
         condition: service_healthy
       etcd:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # ========================================
-  # NGINX
+  # API INSTANCE 2
   # ========================================
-
-  nginx:
-    image: nginx:alpine
-    container_name: kharch-nginx
+  api2:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: kharch-api-2
     restart: unless-stopped
-    ports:
-      - "5000:80"
-    volumes:
-      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      PORT: 5000
+      SHARD_0_HOST: pgbouncer
+      SHARD_0_PORT: 6432
+      SHARD_0_DB: kharch_shard0
+      SHARD_0_USER: kharch_user
+      SHARD_0_PASSWORD: ${POSTGRES_PASSWORD}
+
+      SHARD_1_HOST: pgbouncer
+      SHARD_1_PORT: 6432
+      SHARD_1_DB: kharch_shard1
+      SHARD_1_USER: kharch_user
+      SHARD_1_PASSWORD: ${POSTGRES_PASSWORD}
+
+      SHARD_2_HOST: pgbouncer
+      SHARD_2_PORT: 6432
+      SHARD_2_DB: kharch_shard2
+      SHARD_2_USER: kharch_user
+      SHARD_2_PASSWORD: ${POSTGRES_PASSWORD}
+
+      REPLICA_0_HOST: shard-1-node-1
+      REPLICA_0_PORT: 5432
+      REPLICA_1_HOST: shard-2-node-1
+      REPLICA_1_PORT: 5432
+      REPLICA_2_HOST: shard-3-node-1
+      REPLICA_2_PORT: 5432
+
+      PATRONI_0_URL: http://shard-1-primary:8008
+      PATRONI_1_URL: http://shard-2-primary:8008
+      PATRONI_2_URL: http://shard-3-primary:8008
+
+      ETCD_HOST: etcd
+      ETCD_PORT: 2379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_SECURE: "false"
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 30d
     depends_on:
-      - api
+      postgres-1:
+        condition: service_healthy
+      postgres-2:
+        condition: service_healthy
+      postgres-3:
+        condition: service_healthy
+      postgres-1-replica:
+        condition: service_started
+      postgres-2-replica:
+        condition: service_started
+      postgres-3-replica:
+        condition: service_started
+      pgbouncer:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ========================================
+  # API INSTANCE 3
+  # ========================================
+  api3:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: kharch-api-3
+    restart: unless-stopped
+    environment:
+      PORT: 5000
+      SHARD_0_HOST: pgbouncer
+      SHARD_0_PORT: 6432
+      SHARD_0_DB: kharch_shard0
+      SHARD_0_USER: kharch_user
+      SHARD_0_PASSWORD: ${POSTGRES_PASSWORD}
+
+      SHARD_1_HOST: pgbouncer
+      SHARD_1_PORT: 6432
+      SHARD_1_DB: kharch_shard1
+      SHARD_1_USER: kharch_user
+      SHARD_1_PASSWORD: ${POSTGRES_PASSWORD}
+
+      SHARD_2_HOST: pgbouncer
+      SHARD_2_PORT: 6432
+      SHARD_2_DB: kharch_shard2
+      SHARD_2_USER: kharch_user
+      SHARD_2_PASSWORD: ${POSTGRES_PASSWORD}
+
+      REPLICA_0_HOST: shard-1-node-1
+      REPLICA_0_PORT: 5432
+      REPLICA_1_HOST: shard-2-node-1
+      REPLICA_1_PORT: 5432
+      REPLICA_2_HOST: shard-3-node-1
+      REPLICA_2_PORT: 5432
+
+      PATRONI_0_URL: http://shard-1-primary:8008
+      PATRONI_1_URL: http://shard-2-primary:8008
+      PATRONI_2_URL: http://shard-3-primary:8008
+
+      ETCD_HOST: etcd
+      ETCD_PORT: 2379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_SECURE: "false"
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 30d
+    depends_on:
+      postgres-1:
+        condition: service_healthy
+      postgres-2:
+        condition: service_healthy
+      postgres-3:
+        condition: service_healthy
+      postgres-1-replica:
+        condition: service_started
+      postgres-2-replica:
+        condition: service_started
+      postgres-3-replica:
+        condition: service_started
+      pgbouncer:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ========================================
+  # HAPROXY LOAD BALANCER
+  # ========================================
+  haproxy:
+    image: haproxy:2.8-alpine
+    container_name: kharch-haproxy
+    ports:
+      - "8080:80"
+      - "1936:1936"
+    volumes:
+      - ./infrastructure/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      api1:
+        condition: service_healthy
+      api2:
+        condition: service_healthy
+      api3:
+        condition: service_healthy
 
 # ========================================
-# VOLUMES
+# VOLUMES & NETWORKS
 # ========================================
-
 volumes:
   postgres_1_data:
   postgres_2_data:
@@ -357,3 +547,7 @@ volumes:
   postgres_3_replica_data:
   etcd_data:
   redis_data:
+
+networks:
+  default:
+    name: kharch_default
